@@ -9,13 +9,6 @@ export default function App() {
   const [platformA, setPlatformA] = useState(null)
   const [platformB, setPlatformB] = useState(null)
 
-  // Import state
-  const [importText, setImportText] = useState('')
-  const [importUrl, setImportUrl] = useState('')
-  const [importLoading, setImportLoading] = useState(false)
-  const [importError, setImportError] = useState(null)
-  const [importedApi, setImportedApi] = useState(null)
-
   const mapping = useMemo(() => {
     if (!platformA || !platformB) return null
     const result = getMappingKey(platformA, platformB)
@@ -44,74 +37,12 @@ export default function App() {
     }
   }
 
-  async function handleImportParse(text) {
-    if (!text.trim()) {
-      setImportError('Paste some API documentation or enter a URL first.')
-      return
-    }
-    setImportLoading(true)
-    setImportError(null)
-    setImportedApi(null)
-
-    try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 4096,
-          messages: [{
-            role: 'user',
-            content: `Extract all API endpoints, data objects, webhook events, auth methods, and rate limits from this documentation. Return ONLY valid JSON with no preamble or backticks, structured as: { "name": "API Name", "baseUrl": "", "auth": "", "rateLimits": "", "endpoints": [{"method":"GET|POST|PUT|PATCH|DELETE","path":"","description":""}], "dataObjects": [{"name":"","fields":[]}], "webhooks": [{"event":"","description":"","payload":[]}] }\n\nDocumentation:\n${text}`
-          }]
-        })
-      })
-
-      if (!response.ok) {
-        const err = await response.text()
-        throw new Error(`API request failed (${response.status}): ${err}`)
-      }
-
-      const data = await response.json()
-      const content = data.content?.[0]?.text
-      if (!content) throw new Error('No response content from API')
-
-      const parsed = JSON.parse(content)
-      setImportedApi(parsed)
-    } catch (e) {
-      setImportError(e.message)
-    } finally {
-      setImportLoading(false)
-    }
-  }
-
-  async function handleFetchUrl() {
-    if (!importUrl.trim()) {
-      setImportError('Enter a URL to fetch.')
-      return
-    }
-    setImportLoading(true)
-    setImportError(null)
-
-    try {
-      const response = await fetch(importUrl)
-      if (!response.ok) throw new Error(`Failed to fetch URL (${response.status})`)
-      const text = await response.text()
-      setImportText(text.slice(0, 50000))
-      setImportLoading(false)
-      await handleImportParse(text.slice(0, 50000))
-    } catch (e) {
-      setImportError(`Could not fetch URL: ${e.message}`)
-      setImportLoading(false)
-    }
-  }
-
   return (
     <div className="app">
       <header className="header">
         <h1>Integration<em>Map</em></h1>
         <p className="header-subtitle">
-          Explore CRM APIs, compare how platforms connect, or import any API documentation.
+          Explore CRM APIs and compare how platforms connect.
         </p>
       </header>
 
@@ -130,13 +61,6 @@ export default function App() {
         >
           <TabIcon type="compare" />
           Compare
-        </button>
-        <button
-          className={`tab-btn ${mode === 'import' ? 'active' : ''}`}
-          onClick={() => handleTabChange('import')}
-        >
-          <TabIcon type="import" />
-          Import
         </button>
       </nav>
 
@@ -336,91 +260,6 @@ export default function App() {
         </div>
       )}
 
-      {/* =================== IMPORT MODE =================== */}
-      {mode === 'import' && (
-        <div className="mode-content" key="import">
-          <div className="import-section">
-            <p className="import-intro">
-              Paste raw API documentation, a JSON spec, or an OpenAPI definition below.
-              It will be parsed and displayed in the same format as the built-in platforms.
-            </p>
-
-            <div className="import-url-row">
-              <input
-                type="url"
-                className="import-url-input"
-                placeholder="Or enter a URL to API docs..."
-                value={importUrl}
-                onChange={e => setImportUrl(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleFetchUrl()}
-              />
-              <button
-                className="import-fetch-btn"
-                onClick={handleFetchUrl}
-                disabled={importLoading}
-              >
-                Fetch
-              </button>
-            </div>
-
-            <textarea
-              className="import-textarea"
-              placeholder="Paste API documentation, OpenAPI spec, or JSON here..."
-              value={importText}
-              onChange={e => setImportText(e.target.value)}
-              rows={10}
-            />
-
-            <div className="import-actions">
-              <button
-                className="import-parse-btn"
-                onClick={() => handleImportParse(importText)}
-                disabled={importLoading}
-              >
-                {importLoading ? (
-                  <>
-                    <span className="spinner" />
-                    Parsing...
-                  </>
-                ) : (
-                  'Parse with Claude'
-                )}
-              </button>
-              {importedApi && (
-                <button
-                  className="import-clear-btn"
-                  onClick={() => { setImportedApi(null); setImportText(''); setImportUrl(''); setImportError(null) }}
-                >
-                  Clear
-                </button>
-              )}
-            </div>
-
-            {importError && (
-              <div className="import-error">
-                {importError}
-              </div>
-            )}
-          </div>
-
-          {importedApi && (
-            <ImportedApiView api={importedApi} />
-          )}
-
-          {!importedApi && !importLoading && (
-            <div className="empty-state" style={{ marginTop: 24 }}>
-              <svg className="empty-icon" viewBox="0 0 64 64" fill="none">
-                <rect x="16" y="12" width="32" height="40" rx="3" stroke="currentColor" strokeWidth="1.5" />
-                <path d="M24 24h16M24 30h16M24 36h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                <path d="M32 4v8M28 8l4-4 4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-              <p>Import any API</p>
-              <p>Paste documentation or an OpenAPI spec and it will be parsed into a structured view.</p>
-            </div>
-          )}
-        </div>
-      )}
-
       <footer className="footer">
         <p>
           Built by <a href="https://colewinslow.com" target="_blank" rel="noopener">Cole Winslow</a> · Based on real integration experience
@@ -536,126 +375,6 @@ function SinglePlatformView({ platform, onCompareWith }) {
   )
 }
 
-/* =================== IMPORTED API VIEW =================== */
-function ImportedApiView({ api }) {
-  const color = '#4a6cf0'
-
-  return (
-    <div className="map-container" style={{ marginTop: 24 }}>
-      <div className="single-platform-header">
-        <div className="single-platform-info">
-          <span className="platform-summary-dot" style={{ background: color }} />
-          <div>
-            <h2 className="single-platform-name">{api.name || 'Imported API'}</h2>
-          </div>
-        </div>
-        <div className="single-platform-meta">
-          {api.baseUrl && (
-            <div className="meta-item">
-              <span className="meta-label">Base URL</span>
-              <span className="meta-value mono">{api.baseUrl}</span>
-            </div>
-          )}
-          {api.auth && (
-            <div className="meta-item">
-              <span className="meta-label">Authentication</span>
-              <span className="meta-value mono">{api.auth}</span>
-            </div>
-          )}
-          {api.rateLimits && (
-            <div className="meta-item">
-              <span className="meta-label">Rate Limits</span>
-              <span className="meta-value mono">{api.rateLimits}</span>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Data Objects */}
-      {api.dataObjects?.length > 0 && (
-        <div className="section-block">
-          <SectionHeader title="Data Objects" />
-          <div className="objects-grid">
-            {api.dataObjects.map((obj, i) => (
-              <div className="object-card" key={i}>
-                <div className="object-card-header">
-                  <span className="object-card-name" style={{ color }}>{obj.name}</span>
-                  <span className="object-card-count">{obj.fields?.length || 0} fields</span>
-                </div>
-                {obj.fields?.length > 0 && (
-                  <div className="field-list">
-                    {obj.fields.map((f, j) => (
-                      <span className="field-tag" key={j}>{typeof f === 'string' ? f : f.name || JSON.stringify(f)}</span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Endpoints */}
-      {api.endpoints?.length > 0 && (
-        <div className="section-block">
-          <SectionHeader title="API Endpoints" />
-          <div className="endpoint-panel single-panel">
-            <div className="panel-header">
-              <span className="dot" style={{ background: color }} />
-              <span className="panel-header-name">{api.name || 'API'}</span>
-              {api.auth && <span className="panel-header-meta">{api.auth}</span>}
-            </div>
-            <div className="endpoint-list">
-              {api.endpoints.map((ep, i) => (
-                <div className="endpoint-row" key={i}>
-                  <span className={`method-badge ${(ep.method || 'GET').toUpperCase()}`}>
-                    {(ep.method || 'GET').toUpperCase()}
-                  </span>
-                  <span className="endpoint-path">{ep.path}</span>
-                  <span className="endpoint-desc">{ep.description || ep.desc || ''}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Webhooks */}
-      {api.webhooks?.length > 0 && (
-        <div className="section-block">
-          <SectionHeader title="Webhook Events" />
-          <div className="webhook-panel single-panel">
-            <div className="panel-header">
-              <span className="dot" style={{ background: color }} />
-              <span className="panel-header-name">{api.name || 'API'} Webhooks</span>
-            </div>
-            <div className="webhook-list">
-              {api.webhooks.map((wh, i) => (
-                <div className="webhook-item" key={i}>
-                  <div className="webhook-event">{wh.event}</div>
-                  {(wh.description || wh.desc) && (
-                    <div className="webhook-desc">{wh.description || wh.desc}</div>
-                  )}
-                  {wh.payload && (
-                    <>
-                      <div className="webhook-payload-label">Payload fields</div>
-                      <div className="webhook-payload">
-                        {(Array.isArray(wh.payload) ? wh.payload : Object.keys(wh.payload)).map((f, j) => (
-                          <span className="payload-field" key={j}>{typeof f === 'string' ? f : JSON.stringify(f)}</span>
-                        ))}
-                      </div>
-                    </>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
 /* =================== SHARED COMPONENTS =================== */
 function TabIcon({ type }) {
   if (type === 'explore') return (
@@ -663,14 +382,9 @@ function TabIcon({ type }) {
       <circle cx="7" cy="7" r="5" /><path d="M11 11l3 3" />
     </svg>
   )
-  if (type === 'compare') return (
+  return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
       <rect x="1" y="3" width="5" height="10" rx="1" /><rect x="10" y="3" width="5" height="10" rx="1" /><path d="M6 8h4" strokeDasharray="2 1" />
-    </svg>
-  )
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="2" width="10" height="12" rx="1.5" /><path d="M6 6h4M6 9h4" /><path d="M8 0v2M6.5 0.5L8 2l1.5-1.5" />
     </svg>
   )
 }
